@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Profile {
+  id                      String             @id @db.Uuid
+  name                    String?
+  avatar_url              String?
+  plan                    String             @default("free") // free, pro, team
+  stripe_customer_id      String?            @unique
+  stripe_subscription_id  String?            @unique
+  ideas_used_this_month   Int                @default(0)
+  created_at              DateTime           @default(now()) @db.Timestamptz
+  updated_at              DateTime           @default(now()) @db.Timestamptz @updatedAt
+  
+  workspaces              Workspace[]
+  ideas                   Idea[]
+  workspace_members       WorkspaceMember[]
+
+  @@map("profiles")
+}
+
+model Workspace {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id    String   @db.Uuid
+  name        String
+  description String?
+  emoji       String   @default("💡")
+  is_public   Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz @updatedAt
+
+  owner       Profile  @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  ideas       Idea[]
+  members     WorkspaceMember[]
+
+  @@map("workspaces")
+}
+
+model Idea {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id String   @db.Uuid
+  user_id      String   @db.Uuid
+  title        String
+  raw_idea     String
+  output_type  String   // prd, mvp, pitch, risks, stack, custom
+  content_md   String
+  prompt_used  String?
+  model        String   @default("gemini-2.0-flash")
+  tokens_used  Int?
+  is_starred   Boolean  @default(false)
+  is_public    Boolean  @default(false)
+  public_slug  String?  @unique
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @db.Timestamptz @updatedAt
+
+  workspace    Workspace @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user         Profile   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("ideas")
+}
+
+model WorkspaceMember {
+  workspace_id String   @db.Uuid
+  user_id      String   @db.Uuid
+  role         String   @default("viewer") // owner, editor, viewer
+  joined_at    DateTime @default(now()) @db.Timestamptz
+
+  workspace    Workspace @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+  user         Profile   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([workspace_id, user_id])
+  @@map("workspace_members")
+}
